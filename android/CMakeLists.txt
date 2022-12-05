@@ -104,7 +104,7 @@ find_library(
         NO_CMAKE_FIND_ROOT_PATH
 )
 find_library(
-        FOLLY_JSON_LIB
+        FOLLY_LIB
         folly_json
         PATHS ${LIBRN_DIR}
         NO_CMAKE_FIND_ROOT_PATH
@@ -149,7 +149,7 @@ if(${FOR_HERMES})
             ${HERMES_LIB}
             ${GLOG_LIB}
             fbjni::fbjni
-            ${FOLLY_JSON_LIB}
+            ${FOLLY_LIB}
             ${REACT_NATIVE_JNI_LIB}
             android
     )
@@ -161,7 +161,7 @@ else()
             ${JSEXECUTOR_LIB}
             ${GLOG_LIB}
             fbjni::fbjni
-            ${FOLLY_JSON_LIB}
+            ${FOLLY_LIB}
             ${REACT_NATIVE_JNI_LIB}
             android
     )

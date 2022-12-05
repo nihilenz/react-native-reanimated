@@ -10,8 +10,10 @@ import java.nio.file.Paths
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.apache.tools.ant.filters.ReplaceTokens
 
+def reactNativeRootDir = resolveReactNativeDirectory()
+
 def reactProperties = new Properties()
-file("$projectDir/../node_modules/react-native/ReactAndroid/gradle.properties").withInputStream { reactProperties.load(it) }
+file("$reactNativeRootDir/ReactAndroid/gradle.properties").withInputStream { reactProperties.load(it) }
 
 def BOOST_VERSION = reactProperties.getProperty("BOOST_VERSION")
 def DOUBLE_CONVERSION_VERSION = reactProperties.getProperty("DOUBLE_CONVERSION_VERSION")
@@ -19,6 +21,7 @@ def FOLLY_VERSION = reactProperties.getProperty("FOLLY_VERSION")
 def GLOG_VERSION = reactProperties.getProperty("GLOG_VERSION")
 def REACT_VERSION = reactProperties.getProperty("VERSION_NAME").split("\\.")[1].toInteger()
 def FBJNI_VERSION = '0.2.2'
+def REACT_NATIVE_VERSION = reactProperties.getProperty("VERSION_NAME")
 
 // We download various C++ open-source dependencies into downloads.
 // We then copy both the downloaded code and our custom makefiles and headers into third-party-ndk.
@@ -28,7 +31,7 @@ def downloadsDir = new File("$buildDir/downloads")
 def thirdPartyNdkDir = new File("$buildDir/third-party-ndk")
 
 def reactNative = new File("$projectDir/../node_modules/react-native")
-def reactNativeThirdParty = new File("$reactNative/ReactAndroid/src/main/jni/third-party")
+def reactNativeThirdParty = new File("$reactNativeRootDir/ReactAndroid/src/main/jni/third-party")
 
 def HOME = System.getProperty("user.home")
 
@@ -76,6 +79,56 @@ buildscript {
 
 def safeExtGet(prop, fallback) {
     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+def safeAppExtGet(prop, fallback) {
+    if (findProject(':app') == null) {
+        return fallback
+    }
+    def appProject = project(':app')
+    appProject?.ext?.has(prop) ? appProject.ext.get(prop) : fallback
+}
+
+def resolveReactNativeDirectory() {
+    def reactNativeLocation = safeAppExtGet("REACT_NATIVE_NODE_MODULES_DIR", null)
+    if (reactNativeLocation != null) {
+        return file(reactNativeLocation)
+    }
+
+    if (isDeveloperMode()) {
+        return file("$projectDir/../${getPlaygroundAppName()}/node_modules/react-native")
+    }
+
+    // monorepo workaround
+    // react-native can be hoisted or in project's own node_modules
+    def reactNativeFromProjectNodeModules = file("${rootProject.projectDir}/../node_modules/react-native")
+    if (reactNativeFromProjectNodeModules.exists()) {
+        return reactNativeFromProjectNodeModules
+    }
+    
+    def reactNativeFromNodeModulesWithReanimated = file("${projectDir}/../../react-native")
+    if (reactNativeFromNodeModulesWithReanimated.exists()) {
+        return reactNativeFromNodeModulesWithReanimated
+    }
+
+    throw new Exception(
+        "[Reanimated] Unable to resolve react-native location in " +
+        "node_modules. You should project extension property (in app/build.gradle) " +
+        "`REACT_NATIVE_NODE_MODULES_DIR` with path to react-native."
+    )
+}
+
+def isDeveloperMode() {
+    // developer mode, to run Example app
+    return safeAppExtGet("isReanimatedExampleApp", false) || System.getenv("REANIMATED_PACKAGE_BUILD") == "1"
+}
+
+def isNewArchitectureEnabled() {
+    // To opt-in for the New Architecture, you can either:
+    // - Set `newArchEnabled` to true inside the `gradle.properties` file
+    // - Invoke gradle with `-newArchEnabled=true`
+    // - Set an environment variable `ORG_GRADLE_PROJECT_newArchEnabled=true`
+    return project.hasProperty("newArchEnabled") && project.newArchEnabled == "true"
 }
 
 apply plugin: 'com.android.library'
@@ -346,22 +399,28 @@ def getNdkBuildFullPath() {
 }
 
 task prepareHermes() {
-    def hermesPackagePath = findNodeModulePath(projectDir, "hermes-engine")
-    if (!hermesPackagePath) {
-        throw new GradleScriptException("Could not find the hermes-engine npm package", null)
+    if (!isNewArchitectureEnabled()) {
+        dependsOn(unzipHermes)
     }
 
-    def hermesAAR = file("$hermesPackagePath/android/hermes-debug.aar")
-    if (!hermesAAR.exists()) {
-        throw new GradleScriptException("The hermes-engine npm package is missing \"android/hermes-debug.aar\"", null)
-    }
+    doLast {
+        // e.g. hermes-engine-0.70.0-rc.1-debug.aar
+        def hermesAAR = file(
+            "$reactNativeRootDir/android/com/facebook/react/hermes-engine/" +
+            "${REACT_NATIVE_VERSION}/hermes-engine-${REACT_NATIVE_VERSION}-" +
+            "${resolveBuildType()}.aar"
+        )
+        if (!hermesAAR.exists()) {
+            throw new GradleScriptException("Could not find hermes-engine AAR", null)
+        }
 
-    def soFiles = zipTree(hermesAAR).matching({ it.include "**/*.so" })
+        def soFiles = zipTree(hermesAAR).matching({ it.include "**/*.so" })
 
-    copy {
-        from soFiles
-        from "$reactNative/ReactAndroid/src/main/jni/first-party/hermes/Android.mk"
-        into "$thirdPartyNdkDir/hermes"
+        copy {
+            from soFiles
+            from "$reactNativeRootDir/ReactAndroid/src/main/jni/first-party/hermes/Android.mk"
+            into "$thirdPartyNdkDir/hermes"
+        }
     }
 }
 
@@ -385,7 +444,7 @@ task prepareJSC {
         copy {
             from(soFiles)
             from(headerFiles)
-            from("$reactNative/ReactAndroid/src/main/jni/third-party/jsc/Android.mk")
+            from("$reactNativeRootDir/ReactAndroid/src/main/jni/third-party/jsc/Android.mk")
 
             filesMatching("**/*.h", { it.path = "JavaScriptCore/${it.name}" })
 
@@ -402,7 +461,7 @@ task extractAARHeaders {
             def packageName = file.name.tokenize('-')[0]
             copy {
                 from zipTree(file)
-                into "$reactNative/ReactAndroid/src/main/jni/first-party/$packageName/headers"
+                into "$reactNativeRootDir/ReactAndroid/src/main/jni/first-party/$packageName/headers"
                 include "**/*.h"
             }
         }
@@ -416,7 +475,7 @@ task extractSOFiles {
             def packageName = file.name.tokenize('-')[0]
             copy {
                 from zipTree(file)
-                into "$reactNative/ReactAndroid/src/main/jni/first-party/$packageName/"
+                into "$reactNativeRootDir/ReactAndroid/src/main/jni/first-party/$packageName/"
                 include "jni/**/*.so"
             }
         }
