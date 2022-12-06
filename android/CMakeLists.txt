@@ -21,7 +21,7 @@ file(GLOB sources_shared_items  "./src/main/Common/cpp/SharedItems/*.cpp")
 file(GLOB sources_registries  "./src/main/Common/cpp/Registries/*.cpp")
 file(GLOB sources_android  "./src/main/cpp/*.cpp")
 
-if(${REACT_NATIVE_TARGET_VERSION} LESS 66)
+if(${REACT_NATIVE_MINOR_VERSION} LESS 66)
         set (
                 INCLUDE_JSI_CPP 
                 "${NODE_MODULES_DIR}/react-native/ReactCommon/jsi/jsi/jsi.cpp"
@@ -124,7 +124,7 @@ find_library(
 )
 find_package(fbjni REQUIRED CONFIG)
 
-if(${REACT_NATIVE_TARGET_VERSION} LESS 66)
+if(${REACT_NATIVE_MINOR_VERSION} LESS 66)
         set (JSI_LIB "")
 else()
         find_library(
@@ -167,7 +167,7 @@ else()
     )
 endif()
 
-if(${REACT_NATIVE_TARGET_VERSION} LESS 64)
+if(${REACT_NATIVE_MINOR_VERSION} LESS 64)
     add_library(
             turbomodulejsijni
             # Sets the library as a shared library.
