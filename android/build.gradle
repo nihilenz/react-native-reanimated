@@ -119,6 +119,13 @@ def resolveReactNativeDirectory() {
     )
 }
 
+def resolveBuildType() {
+    Gradle gradle = getGradle()
+    String tskReqStr = gradle.getStartParameter().getTaskRequests()['args'].toString()
+    
+    return tskReqStr.contains('Release') ? 'release' : 'debug'
+}
+
 def isDeveloperMode() {
     // developer mode, to run Example app
     return safeAppExtGet("isReanimatedExampleApp", false) || System.getenv("REANIMATED_PACKAGE_BUILD") == "1"
@@ -561,6 +568,8 @@ dependencies {
     extractHeaders("com.facebook.fbjni:fbjni:" + FBJNI_VERSION + ":headers")
     extractSO("com.facebook.fbjni:fbjni:" + FBJNI_VERSION)
 
+    def buildType = resolveBuildType()
+    def rnAarMatcher = "**/react-native/**/*${buildType}.aar"
     def rnAAR = fileTree("$reactNativeRootDir/android").matching({ it.include rnAarMatcher }).singleFile
     def jscAAR = fileTree("$reactNativeRootDir/../jsc-android/dist/org/webkit/android-jsc").matching({ it.include "**/**/*.aar" }).singleFile
     extractSO(files(rnAAR, jscAAR))
