@@ -122,7 +122,12 @@ find_library(
         PATHS ${LIBRN_DIR}
         NO_CMAKE_FIND_ROOT_PATH
 )
-find_package(fbjni REQUIRED CONFIG)
+find_library(
+        FBJNI_LIB
+        fbjni
+        PATHS ${LIBRN_DIR}
+        NO_CMAKE_FIND_ROOT_PATH
+)
 
 if(${REACT_NATIVE_MINOR_VERSION} LESS 66)
         set (JSI_LIB "")
@@ -148,7 +153,7 @@ if(${FOR_HERMES})
             ${JSI_LIB}
             ${HERMES_LIB}
             ${GLOG_LIB}
-            fbjni::fbjni
+            ${FBJNI_LIB}
             ${FOLLY_LIB}
             ${REACT_NATIVE_JNI_LIB}
             android
@@ -160,7 +165,7 @@ else()
             ${JSI_LIB}
             ${JSEXECUTOR_LIB}
             ${GLOG_LIB}
-            fbjni::fbjni
+            ${FBJNI_LIB}
             ${FOLLY_LIB}
             ${REACT_NATIVE_JNI_LIB}
             android
